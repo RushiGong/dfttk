@@ -8,6 +8,7 @@ import os
 os.environ["HOME"] = str(Path.home())
 
 import numpy as np
+import copy
 from uuid import uuid4
 from copy import deepcopy
 from fireworks import Workflow, Firework
@@ -15,7 +16,7 @@ from atomate.vasp.config import VASP_CMD, DB_FILE
 from dfttk.fworks import OptimizeFW, StaticFW, PhononFW, RobustOptimizeFW, BornChargeFW
 from dfttk.ftasks import CheckRelaxScheme
 from dfttk.input_sets import PreStaticSet, RelaxSet, ForceConstantsSet, ElasticSet
-from dfttk.EVcheck_QHA import EVcheck_QHA, PreEV_check
+from dfttk.EVcheck_QHA import EVcheck_QHA, Crosscom_EVcheck_QHA, PreEV_check
 from dfttk.utils import check_relax_path, add_modify_incar_by_FWname, add_modify_kpoints_by_FWname, supercell_scaling_by_atom_lat_vol
 from dfttk.scripts.querydb import is_property_exist_in_db, get_eq_structure_by_metadata
 #from atomate.vasp.workflows.base.elastic import get_wf_elastic_constant
@@ -23,6 +24,29 @@ from dfttk.elasticity.elastic import get_wf_elastic_constant
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 import sys
 
+
+from pymatgen.core import Structure
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+
+
+def scale_lattice_vector(structure, factor: float, axisa=False, axisb=False, axisc=True,):
+        """
+        Performs a scaling of the lattice vectors so that angles are preserved
+        axisx(x=a,b,c) = True:
+            x lattice scale.
+        Args:
+            factor (float): scaling factor.
+        """
+        struct = copy.deepcopy(structure).as_dict()
+        matrix = np.array(struct['lattice']['matrix'])
+        if axisa:
+            matrix[0] *= factor
+        if axisb:
+            matrix[1] *= factor
+        if axisc:
+            matrix[2] *= factor
+        struct['lattice']['matrix']=list(matrix)
+        return Structure.from_dict(struct)
 
 def _get_deformations(def_frac, num_def):
     if isinstance(def_frac, (list, tuple)):
@@ -76,7 +100,47 @@ def get_wf_EV_bjb(structure, deformation_fraction=(-0.08, 0.12), store_volumetri
     return wf
 
 
-def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, override_default_vasp_params=None):
+def get_constrain(deformation_scheme, new_deformation_fraction, new_num_deformations):
+    deformations = _get_deformations(new_deformation_fraction, new_num_deformations)
+    if deformation_scheme=='volume':
+        ppp = 1./3.
+        axisa=True
+        axisb=True
+        axisc=True
+    elif deformation_scheme=='a':
+        ppp = 1.
+        axisa=True
+        axisb=False
+        axisc=False        
+    elif deformation_scheme=='b':
+        ppp = 1.
+        axisa=False
+        axisb=True
+        axisc=False
+    elif deformation_scheme=='c':
+        ppp = 1.
+        axisa=False
+        axisb=False
+        axisc=True
+    elif deformation_scheme=='bc' or deformation_scheme=='cb':
+        ppp = 0.5
+        axisa=False
+        axisb=True
+        axisc=True        
+    elif deformation_scheme=='ca' or deformation_scheme=='ac':
+        ppp = 0.5
+        axisa=True
+        axisb=False
+        axisc=True
+    elif deformation_scheme=='ab' or deformation_scheme=='ba':
+        ppp = 0.5
+        axisa=True
+        axisb=True
+        axisc=False
+    return axisa, axisb, axisc, pow(deformations,ppp)
+
+
+def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, override_default_vasp_params=None, settings=None):
     """
     Perform single volume relaxation calculation.
 
@@ -89,7 +153,23 @@ def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, overri
     metadata.update({'tag': tag})
     common_kwargs = {"metadata": metadata, "tag":tag,
         'override_default_vasp_params': override_default_vasp_params}
+    
+    num_deformations = settings.get('num_deformations', 1)
+    #list/tuple(min, max) or float(-max, max), the maximum amplitude of deformation, e.g. (-0.15, 0.15) means (0.95, 1.1) in volume
+    deformation_fraction = settings.get('deformation_fraction', (-0.0, +0.0))
+    deformation_scheme = settings.get('deformation_scheme', 'volume')
+    
+    isif = settings.get('run_isif', None)
+    if not isif:
+        isif=3
+        if num_deformations>1: 
+            if deformation_scheme=='volume': isif = 4
+            else: isif = 2
+
+    axisa, axisb, axisc, deformations = get_constrain(deformation_scheme, deformation_fraction, num_deformations) 
+
     fws = []
+<<<<<<< HEAD
     full_relax_fw = OptimizeFW(structure, isif=3, vasp_cmd=VASP_CMD, db_file=DB_FILE,
         name=structure.composition.reduced_formula+'-Fullrelax',
         store_volumetric_data=store_volumetric_data, **common_kwargs)
@@ -99,6 +179,19 @@ def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, overri
         vasp_input_set=None, prev_calc_loc=True, parents=full_relax_fw,
         store_volumetric_data=store_volumetric_data, **common_kwargs)
     fws.append(static_fw)    
+=======
+    for defo in deformations:
+        struct = scale_lattice_vector(structure, defo, axisa=axisa, axisb=axisb, axisc=axisc)
+        full_relax_fw = OptimizeFW(struct, isif=isif, vasp_cmd=VASP_CMD, db_file=DB_FILE,
+            name='Relax_with_ISIF='+str(isif)+'_and_defo={:5.3f}'.format(defo),
+            store_volumetric_data=store_volumetric_data, **common_kwargs)
+        fws.append(full_relax_fw)
+        static_fw = StaticFW(struct, isif=2, vasp_cmd=VASP_CMD, db_file=DB_FILE, 
+            name='Staitc',
+            vasp_input_set=None, prev_calc_loc=True, parents=full_relax_fw,
+            store_volumetric_data=store_volumetric_data, **common_kwargs)
+        fws.append(static_fw)    
+>>>>>>> b7f5a265f54fca4eb1c6dc5d09eb72da67a17e35
     if metadata is not None and all(x in metadata for x in ('phase_name', 'sublattice_configuration')):
         # create a nicer name for the workflow
         subl_config = ':'.join(','.join(subl_comps) for subl_comps in metadata['sublattice_configuration'])
@@ -106,6 +199,142 @@ def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, overri
     else:
         wfname = f"unknown:{structure.composition.reduced_formula}:unknown"
     wf = Workflow(fws, name=wfname, metadata=metadata)
+    return wf
+
+
+def get_wf_crosscom(structure, metadata=None, settings=None, run_num = 0,
+        new_num_deformations=None, new_deformation_fraction=None):
+    """
+    Perform cross computer QHA calculation without computer dependent.
+
+    Parameters
+    ----------
+    structure : pymatgen.Structure
+    """
+    ################ PARAMETERS FOR WF #############################
+    #str, the absolute path of db.json file, e.g. /storage/home/mjl6505/atomate/config/db.json
+    #  If None, it will use the configuration in fireworks
+    db_file = settings.get('db_file', DB_FILE)
+    #str, the vasp command, if None then find in the FWorker configuration
+    vasp_cmd = settings.get('vasp_cmd', VASP_CMD)
+    #dict, metadata to be included, this parameter is useful for filter the data, e.g. metadata={"phase": "BCC_A2", "tag": "AFM"}
+    metadata = metadata or {}
+    tag = metadata.get('tag', '{}'.format(str(uuid4())))
+    metadata.update({'tag': tag})
+
+    #list/tuple(min, max) or float(-max, max), the maximum amplitude of deformation, e.g. (-0.15, 0.15) means (0.95, 1.1) in volume
+    deformation_fraction = settings.get('deformation_fraction', (-0.15, 0.20))
+    #int, the number of initial deformations, e.g. 7
+    num_deformations = settings.get('num_deformations', 8)
+    if num_deformations==1:
+        deformation_fraction[1] = deformation_fraction[0]
+    settings = settings or {}
+    #bool, run phonon(True) or not(False)
+    phonon = settings.get('phonon', False)
+    #list(3x3), the supercell matrix for phonon, e.g. [[2.0, 0, 0], [0, 2.0, 0], [0, 0, 2.0]]
+    phonon_supercell_matrix = settings.get('phonon_supercell_matrix', None)
+    phonon_supercell_matrix_min = settings.get('phonon_supercell_matrix_min', None)
+    phonon_supercell_matrix_max = settings.get('phonon_supercell_matrix_max', None)
+    optimize_sc = settings.get('optimize_sc', False)
+    #run phonon always, no matter ISIF=4 passed or not
+    force_phonon  = settings.get('force_phonon', False)
+    #The tolerance for phonon stable
+    stable_tor = settings.get('stable_tor', 0.01)
+    #float, the mimimum of temperature in QHA process, e.g. 5
+    t_min = settings.get('t_min', 5)
+    #float, the maximum of temperature in QHA process, e.g. 2000
+    t_max = settings.get('t_max', 2000)
+    #float, the step of temperature in QHA process, e.g. 5
+    t_step = settings.get('t_step', 5)
+    #float, acceptable value for average RMS, recommend >= 0.005
+    eos_tolerance = settings.get('eos_tolerance', 0.01)
+
+    #Global settings for all vasp job, e.g.
+    #override_default_vasp_params = {'user_incar_settings': {}, 'user_kpoints_settings': {}, 'user_potcar_functional': str}
+    #If some value in 'user_incar_settings' is set to None, it will use vasp's default value
+    override_default_vasp_params = settings.get('override_default_vasp_params', {})
+
+    #dict, dict of class ModifyIncar with keywords in Workflow name. e.g.
+    modify_incar_params = settings.get('modify_incar_params', {})
+
+    #check if fworker_name is assigned
+    powerups = settings.get('powerups', {})
+    if len(powerups)>0:
+        if 'user_incar_settings' not in override_default_vasp_params:
+            override_default_vasp_params.update({'user_incar_settings':{}})
+        override_default_vasp_params['user_incar_settings'].update({'powerups':powerups})
+        modify_incar_params.update({'powerups':powerups})
+    
+    #dict, dict of class ModifyKpoints with keywords in Workflow name, similar with modify_incar_params
+    modify_kpoints_params = settings.get('modify_kpoints_params', {})
+    #bool, print(True) or not(False) some informations, used for debug
+    verbose = settings.get('verbose', False)
+    #Save the volume data or not ("chgcar", "aeccar0", "aeccar2", "elfcar", "locpot")
+    store_volumetric_data = settings.get('store_volumetric_data', False)
+
+
+    if phonon:
+        if isinstance(phonon_supercell_matrix, str):
+            if phonon_supercell_matrix=='Yphon':
+                phonon_supercell_matrix = supercell_scaling_by_Yphon(structure, 
+                                            supercellsize=phonon_supercell_matrix_max)
+            else:
+                phonon_supercell_matrix = supercell_scaling_by_atom_lat_vol(structure, min_obj=phonon_supercell_matrix_min,
+                                            max_obj=phonon_supercell_matrix_max, scale_object=phonon_supercell_matrix,
+                                            target_shape='sc', lower_search_limit=-2, upper_search_limit=2,
+                                            verbose=verbose, sc_tolerance=1e-5, optimize_sc=optimize_sc)
+
+    _deformations = _get_deformations(deformation_fraction, num_deformations)
+    if num_deformations > 1: vol_spacing = _deformations[1]-_deformations[0]
+    else: vol_spacing=0.05
+
+    if new_deformation_fraction is None:
+        new_deformation_fraction = copy.deepcopy(deformation_fraction)
+        new_num_deformations = num_deformations
+
+    deformation_scheme = settings.get('deformation_scheme', 'volume')
+    single_volume = settings.get('single_volume', False)
+
+
+    isif = settings.get('run_isif', None)
+    if not isif:
+        isif=3
+        if num_deformations>1: 
+            if deformation_scheme=='volume': isif = 4
+            else: isif = 2
+
+    t_kwargs = {'t_min': t_min, 't_max': t_max, 't_step': t_step}
+    common_kwargs = {'vasp_cmd': vasp_cmd, 'db_file': db_file, "metadata": metadata, "tag": tag,
+                     'override_default_vasp_params': override_default_vasp_params}
+    vasp_kwargs = {'modify_incar_params': modify_incar_params, 'modify_kpoints_params': modify_kpoints_params}
+    eos_kwargs = {'deformations': _deformations, 'vol_spacing': vol_spacing, 'eos_tolerance': eos_tolerance, 'threshold': 14}
+    a_kwargs = {"structure":structure, "settings":settings, "eos_kwargs":eos_kwargs,
+        "static": True, "phonon":phonon, "phonon_supercell_matrix":phonon_supercell_matrix}
+
+
+    axisa, axisb, axisc, deformations = get_constrain(deformation_scheme, new_deformation_fraction, num_deformations) 
+
+    fws = []
+    for defo in deformations:
+        struct = scale_lattice_vector(structure, defo, axisa=axisa, axisb=axisb, axisc=axisc)
+        full_relax_fw = OptimizeFW(struct, isif=isif, 
+            name='Relax_with_ISIF='+str(isif)+'_and_defo={:5.3f}'.format(defo),
+            store_volumetric_data=store_volumetric_data,
+            t_kwargs=t_kwargs, a_kwargs=a_kwargs, **common_kwargs)
+        fws.append(full_relax_fw)
+    tmp = copy.deepcopy(fws)
+    if not single_volume:
+        check_qha_fw = Firework(Crosscom_EVcheck_QHA(verbose=verbose, stable_tor=stable_tor,
+            run_num = run_num,
+            store_volumetric_data=store_volumetric_data, a_kwargs=a_kwargs,
+            **eos_kwargs, **vasp_kwargs, **t_kwargs, **common_kwargs),
+            parents=tmp, name='{}-Crosscom_EVcheck_QHA'.format(structure.composition.reduced_formula))
+        fws.append(check_qha_fw)
+
+    wfname = "{}:{}".format(structure.composition.reduced_formula, 'EV_QHA_crosscom')
+    wf = Workflow(fws, name=wfname, metadata=metadata)
+    add_modify_incar_by_FWname(wf, modify_incar_params = modify_incar_params)
+    add_modify_kpoints_by_FWname(wf, modify_kpoints_params = modify_kpoints_params)
     return wf
 
 

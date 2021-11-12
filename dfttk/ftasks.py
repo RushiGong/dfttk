@@ -741,6 +741,85 @@ class ModifyKpoints(FiretaskBase):
 
 
 @explicit_serialize
+class Crosscom_Calculation(FiretaskBase):
+    """Continue Static/Phonon calculations
+    """
+
+    required_params = []
+    optional_params = ['db_file', 'vasp_cmd', 'a_kwargs',
+                       'db_insert', 'tag', 'metadata', 'name', 'vasp_input_set',
+                       't_min', 't_max', 't_step', 
+                       'verbose', 'modify_incar_params', 'modify_kpoints_params', 
+                       'override_default_vasp_params', 
+                       'store_volumetric_data', 'static']
+
+    def run_task(self, fw_spec):
+        db_file = self.get('db_file') or DB_FILE
+        vasp_cmd = self.get('vasp_cmd') or VASP_CMD
+        db_insert = self.get('db_insert', None)
+        tag = self.get('tag')
+        metadata = self.get('metadata')
+        name = self.get('name', "Crosscom_Calculation")
+        t_min = self.get('t_min', None)
+        t_max = self.get('t_max', None)
+        t_step = self.get('t_step', None)
+        modify_incar_params = self.get('modify_incar_params', {})
+        modify_kpoints_params = self.get('modify_kpoints_params', {})
+        override_default_vasp_params = self.get('override_default_vasp_params', {})
+        store_volumetric_data = self.get('store_volumetric_data', False)
+        a_kwargs = self.get('a_kwargs', {})
+
+        return FWAction(detours=self.get_detour_workflow(
+            db_file, vasp_cmd, db_insert, tag, metadata, name, 
+            t_min, t_max, t_step, 
+            modify_incar_params, modify_kpoints_params,
+            override_default_vasp_params,
+            store_volumetric_data, a_kwargs=a_kwargs)
+            )
+
+    def get_detour_workflow(self,
+        db_file, vasp_cmd, db_insert, tag, metadata, name, 
+        t_min, t_max, t_step, 
+        modify_incar_params, modify_kpoints_params, 
+        override_default_vasp_params, 
+        store_volumetric_data, a_kwargs=None):
+        from fireworks import Workflow
+        from .fworks import PhononFW, StaticFW
+        a_kwargs = a_kwargs or {}
+        settings = a_kwargs.get('settings', {})
+        stable_tor = settings.get('stable_tor', 0.01)
+        
+        phonon = settings.get('phonon', False)
+        phonon_supercell_matrix = a_kwargs.get('phonon_supercell_matrix', None)
+        structure=a_kwargs.get('structure', None)
+        site_properties = structure.site_properties
+        
+        detour_fws = []
+        inp_structure = Structure.from_file('CONTCAR')
+        if len(site_properties)>0:
+            for prop, vals in site_properties.items():
+                inp_structure.add_site_property(prop, vals)
+
+        detour_fws.append(StaticFW(inp_structure, name="crosscom-static", 
+                 vasp_cmd=vasp_cmd, metadata=metadata, prev_calc_loc=False, modify_incar=modify_incar_params, 
+                 db_file=db_file, tag=tag, 
+                 override_default_vasp_params=override_default_vasp_params,
+                 store_volumetric_data=store_volumetric_data))
+
+        if phonon:
+            t_kwargs = {'t_min': t_min, 't_max': t_max, 't_step': t_step}
+            common_kwargs = {'vasp_cmd': vasp_cmd, 'db_file': db_file, "metadata": metadata, "tag": tag,
+                'override_default_vasp_params': override_default_vasp_params}
+            detour_fws.append(PhononFW(inp_structure, phonon_supercell_matrix, 
+                name='crosscom-phonon', prev_calc_loc=False, stable_tor=stable_tor,
+                **t_kwargs, **common_kwargs))
+
+        override_default_vasp_params = override_default_vasp_params or {}
+        user_incar_settings = override_default_vasp_params.get('user_incar_settings',{})
+        return Customizing_Workflows(detour_fws, powerups_options=user_incar_settings.get('powerups', None))
+
+
+@explicit_serialize
 class CheckRelaxation(FiretaskBase):
     """Run VASP calculations to get symmetry conserved and symmetry broken structures.
 
