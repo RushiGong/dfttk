@@ -1,0 +1,8 @@
+name: aci-rour
+category: ''
+query: '{}'
+env:
+    db_file: /Users/thea/Desktop/dfttk/config/db.json
+    vasp_cmd: mpirun vasp_std
+    scratch_dir: 'null'
+    incar_update: {}

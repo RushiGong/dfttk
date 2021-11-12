@@ -1,0 +1,15 @@
+_fw_name: CommonAdapter
+_fw_q_type: PBS
+rocket_launch: rlaunch -c /Users/thea/Desktop/dfttk/config rapidfire
+nnodes: 1
+ppnode: 16
+pmem: 32gb
+walltime: '48:00:00'
+queue: open
+account: open
+job_name: dfttk
+pre_rocket: '#'
+post_rocket: ''
+logdir: /Users/thea/Desktop/dfttk/logs
+_fw_template_file: ./config/PBS_template_custom.txt
+vasp_cmd: mpirun vasp_std

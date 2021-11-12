@@ -1,0 +1,8 @@
+CONFIG_FILE_DIR: /Users/thea/Desktop/dfttk/config
+LAUNCHPAD_LOC: /Users/thea/Desktop/dfttk/config/my_launchpad.yaml
+FWORKER_LOC: /Users/thea/Desktop/dfttk/config/my_fworker.yaml
+QUEUEADAPTER_LOC: /Users/thea/Desktop/dfttk/config/my_qadapter.yaml
+QUEUE_JOBNAME_MAXLEN: 15
+ADD_USER_PACKAGES:
+- atomate.vasp.firetasks
+- atomate.feff.firetasks

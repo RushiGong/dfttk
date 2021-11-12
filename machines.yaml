@@ -1,0 +1,70 @@
+aci-roar:
+    _fw_q_type: PBS
+    _fw_template_file: ./config/PBS_template_custom.txt
+    account: open
+    post_rocket: ''
+    pre_rocket: '#'
+    queue: open
+    vasp_cmd: mpirun vasp_std
+aci-vasp5:
+    _fw_q_type: PBS
+    account: open
+    post_rocket: ''
+    pre_rocket: 'module load intel/19.1.2
+
+        module load impi/2019.8
+
+        module use /gpfs/group/RISE/sw7/modules
+
+        module load vasp
+
+        export UCX_TLS=all'
+    queue: open
+    vasp_cmd: mpirun vasp_std
+aci-vasp6:
+    _fw_q_type: PBS
+    account: open
+    post_rocket: ''
+    pre_rocket: 'module load intel/19.1.2
+
+        module load impi/2019.8
+
+        module use /gpfs/group/RISE/sw7/modules
+
+        module load vasp/vasp-6.2.0
+
+        export UCX_TLS=all'
+    queue: open
+    vasp_cmd: mpirun vasp_std
+bridges2:
+    _fw_q_type: SLURM
+    account: dmr170016p
+    post_rocket: ''
+    pre_rocket: module load intel cuda intelmpi/20.4-intel20.4
+    queue: RM
+    vasp_cmd: mpirun -np 16 /opt/packages/VASP/VASP5/INTEL/vasp_std
+cori-hsw:
+    _fw_q_type: SLURM
+    account: m891
+    constraint: haswell
+    mem: 64gb
+    post_rocket: ''
+    pre_rocket: module load vasp/5.4.4-hsw
+    queue: regular
+    vasp_cmd: srun -n 16 --cpu_bind=cores vasp_std
+cori-knl:
+    _fw_q_type: SLURM
+    account: m891
+    constraint: knl,quad,cache
+    mem: 64gb
+    post_rocket: ''
+    pre_rocket: module load vasp/5.4.4-knl
+    queue: regular
+    vasp_cmd: srun -n 16 --cpu_bind=cores vasp_std
+stampede2:
+    _fw_q_type: SLURM
+    account: TG-DMR140063
+    post_rocket: ''
+    pre_rocket: module load vasp/5.4.4
+    queue: normal
+    vasp_cmd: ibrun -np 16 vasp_std

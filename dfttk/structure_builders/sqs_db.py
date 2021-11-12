@@ -176,6 +176,7 @@ def SQSDatabaseATAT(atat_sqsdb_path, db_save_path=None):
             db_save_path = os.path.dirname(__file__)
         sqsdb_fullpath = db_save_path + "/ATAT_SQSDB.json"
         db = TinyDB(sqsdb_fullpath)
+        db.drop_tables() #rewrite the database file
     for diri in os.listdir(atat_sqsdb_path):
         sqsgen_path = os.path.join(atat_sqsdb_path, diri)
         if os.path.isdir(sqsgen_path):

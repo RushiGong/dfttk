@@ -1,0 +1,9 @@
+host: 146.186.149.69
+name: rsgong-fws
+password: 38anAN#p
+port: 27018
+ssl_ca_file: null
+strm_lvl: INFO
+user_indices: []
+username: rsgong
+wf_user_indices: []

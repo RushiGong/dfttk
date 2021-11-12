@@ -1,0 +1,11 @@
+{
+    "database": "rsgong-results",
+    "collection": "tasks",
+    "admin_user": "rsgong",
+    "admin_password": "NPn30apo",
+    "readonly_user": "rsgong-ro",
+    "readonly_password": "9alO7laA",
+    "host": "146.186.149.69",
+    "port": 27018,
+    "aliases": {}
+}
