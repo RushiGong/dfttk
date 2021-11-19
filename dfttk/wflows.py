@@ -169,17 +169,6 @@ def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, overri
     axisa, axisb, axisc, deformations = get_constrain(deformation_scheme, deformation_fraction, num_deformations) 
 
     fws = []
-<<<<<<< HEAD
-    full_relax_fw = OptimizeFW(structure, isif=3, vasp_cmd=VASP_CMD, db_file=DB_FILE,
-        name=structure.composition.reduced_formula+'-Fullrelax',
-        store_volumetric_data=store_volumetric_data, **common_kwargs)
-    fws.append(full_relax_fw)
-    static_fw = StaticFW(structure, isif=2, vasp_cmd=VASP_CMD, db_file=DB_FILE, 
-        name=structure.composition.reduced_formula+'-Staitc',
-        vasp_input_set=None, prev_calc_loc=True, parents=full_relax_fw,
-        store_volumetric_data=store_volumetric_data, **common_kwargs)
-    fws.append(static_fw)    
-=======
     for defo in deformations:
         struct = scale_lattice_vector(structure, defo, axisa=axisa, axisb=axisb, axisc=axisc)
         full_relax_fw = OptimizeFW(struct, isif=isif, vasp_cmd=VASP_CMD, db_file=DB_FILE,
@@ -191,7 +180,6 @@ def get_wf_singleV(structure, store_volumetric_data=False, metadata=None, overri
             vasp_input_set=None, prev_calc_loc=True, parents=full_relax_fw,
             store_volumetric_data=store_volumetric_data, **common_kwargs)
         fws.append(static_fw)    
->>>>>>> b7f5a265f54fca4eb1c6dc5d09eb72da67a17e35
     if metadata is not None and all(x in metadata for x in ('phase_name', 'sublattice_configuration')):
         # create a nicer name for the workflow
         subl_config = ':'.join(','.join(subl_comps) for subl_comps in metadata['sublattice_configuration'])
