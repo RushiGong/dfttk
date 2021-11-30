@@ -121,7 +121,7 @@ class PRLStructure(Structure):
             species_frequency_dict = {}
             for site, wyckoff_site in zip(struct.sites, wyckoff_sites):
                 if wyckoff_site in subl:
-                    species = site.specie.name
+                    species = site.specie.name.upper()
                     species_frequency_dict[species] = species_frequency_dict.get(species, 0) + 1
             total_subl_occupation = sum(species_frequency_dict.values())
             subl_species = sorted(set(species_frequency_dict.keys()))
