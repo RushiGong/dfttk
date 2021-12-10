@@ -180,7 +180,7 @@ def SQSDatabaseATAT(atat_sqsdb_path, db_save_path=None):
     for diri in os.listdir(atat_sqsdb_path):
         sqsgen_path = os.path.join(atat_sqsdb_path, diri)
         if os.path.isdir(sqsgen_path):
-            prototype = diri.split("_")
+            prototype = diri
             for atatsqs_path in os.listdir(sqsgen_path):
                 sqs_path = os.path.join(sqsgen_path, atatsqs_path)
                 if os.path.isdir(sqs_path):
@@ -274,7 +274,7 @@ def read_sqsgen_in(sqsgen_path):
             f_count += 1
     return sqs_folders, sqs_config
 
-def get_structures_from_database(db, symmetry, subl_model, subl_site_ratios):
+def get_structures_from_database(db, prototype, subl_model, subl_site_ratios):
     """Returns a list of Structure objects from the db that match the criteria.
 
     The returned list format supports matching SQS to phases that have multiple solution sublattices
@@ -284,8 +284,8 @@ def get_structures_from_database(db, symmetry, subl_model, subl_site_ratios):
     ----------
     db : tinydb.database.Table
         TinyDB database of the SQS database
-    symmetry : str
-        Spacegroup symbol for a non-mixing endmember as in pymatgen, e.g. 'Pm-3m'.
+    prototype : str
+        Prototype symbol as in ATAT sqsdb, e.g. 'GAMMA_L12'.
     subl_model : [[str]]
         List of strings of species names. This sublattice model can be of higher dimension than the SQS.
         Outer dimension should be the same length as subl_site_ratios.
@@ -324,7 +324,7 @@ def get_structures_from_database(db, symmetry, subl_model, subl_site_ratios):
         return False
 
     from tinydb import where
-    results = db.search((where('symmetry').symbol == symmetry) &
+    results = db.search((where('prototype') == prototype) &
                         (where('sublattice_site_ratios').test(
                          lambda x: (lists_are_multiple([sum(subl) for subl in x], subl_site_ratios))))
               )
