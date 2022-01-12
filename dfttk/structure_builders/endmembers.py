@@ -4,10 +4,11 @@ from dfttk import PRLStructure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.core.periodic_table import Element
 from itertools import permutations, product, chain
+from collections import Counter
 import dfttk.structure_builders.substitutions as substitutions
 import dfttk.utils
 
-def get_sublattice_information(structure, equivalent_wyckoff_sites=None):
+def get_sublattice_information(structure, use_equivalent_atom=False):
 	"""
 	Return defined sublattice_name based on wyckoff positions and other sublattice information
 
@@ -15,34 +16,50 @@ def get_sublattice_information(structure, equivalent_wyckoff_sites=None):
 	----------
 	structure : pymatgen.Structure
 
-	equivalent_wyckoff_sites: dict
-		Dict of Wyckoff sites that are treated as the same sublattice, e.g. {'b': 'f'} will
-		give combine Wyckoff site 'b' and Wyckoff site 'f' into one sublattice named as 'b'. For
-		multiple equivalent sites, one can use {'b': 'f', 'c': 'i'}
+	use_equivalent_atom: 
+		From pymatgen function, it shows the wyckoff letter for each site. Some sites with the same
+		wyckoff letters may still be symmetric inequivalent due to their coordinates. Here equivalent atom
+		setting will distinguish symmetry inequivalent sites and provide more information for build up sublattice.
+		The default setting is False. If you would like to get information based on equivalent atoms, use True.
 
 	Returns
 	-------
-
-	site_list: list
+	true_sublattice_sites: list
+		List of wyckoff letters for each site
 
 	subl_model_name: list
-		Name for each sublattice based on the name of wyckoff position
+		Name for each sublattice based on the name of wyckoff sites
 	"""
 	structure.replace_species({sp.name: "H" for sp in structure.species})
 	sga = SpacegroupAnalyzer(structure)
 	wyckoff_sites = sga.get_symmetry_dataset()['wyckoffs']
-	if equivalent_wyckoff_sites is not None:
-		true_sublattice_sites = [equivalent_wyckoff_sites[i] if i in equivalent_wyckoff_sites else i for i in wyckoff_sites]
+	equal_atom = sga.get_symmetry_dataset()['equivalent_atoms']
+	num_wyckoff_sites = sorted(set(wyckoff_sites))
+	num_eq_atom=sorted(set(equal_atom))
+	if len(num_wyckoff_sites)!=len(num_eq_atom):
+		print('Wyckoff sites may not be consistent with equivalent atoms in the structure, please check symmerty information and choose the sublattice model.')
+	if use_equivalent_atom==True:
+		sub_wyckoff_name=[]
+		for i in num_eq_atom:
+			sub_wyckoff_name.append(wyckoff_sites[i])
+		replace_list=[]
+		original_list=[]
+		for i in sub_wyckoff_name:
+			original_list.append(i)
+			if i in replace_list:
+				count_subl=dict(Counter(original_list))
+				j=i+str(count_subl[i])
+			else:
+				j=i
+			replace_list.append(j)
+		replace_dict=dict(zip(num_eq_atom, replace_list))
+		true_sublattice_sites=[replace_dict[i] for i in equal_atom]
 	else:
 		true_sublattice_sites = wyckoff_sites
-	site_list=[]
-	for i in true_sublattice_sites:
-		site_dict={'sublattice_sites': i}
-		site_list.append(site_dict)
-		subl_model_name = sorted(set(true_sublattice_sites))
-	return site_list, subl_model_name
+	subl_model_name = sorted(set(true_sublattice_sites))
+	return true_sublattice_sites, subl_model_name
 
-def get_templates(structure, equivalent_wyckoff_sites=None):
+def get_templates(structure, wyckoff_site_list, subl_model_name, equivalent_sites=None):
 	"""
 	Return templates of structure and configuration for substitution of endmembers
 
@@ -50,23 +67,35 @@ def get_templates(structure, equivalent_wyckoff_sites=None):
 	----------
 	structure : pymatgen.Structure
 
-	equivalent_wyckoff_sites: dict
-		Dict of Wyckoff sites that are treated as the same sublattice, e.g. {'b': 'f'} will
-		give combine Wyckoff site 'b' and Wyckoff site 'f' into one sublattice named as 'f'. For
-		multiple equivalent sites, one can use {'b': 'f', 'c': 'i'}
+	wyckoff_site_list: list
+		List of wyckoff letter for each site, can be get from function get_sublattice_information. 
+		If input manually, please make sure the order matches with the order of postions in pymatgen.Structrue
+
+	subl_model_name: list
+		Name for each sublattice based on the name of wyckoff sites.
+
+	equivalent_sites: dict
+		Set the equivalent sites when needed. For example, {'b': 'a'} means merge site 'a' and 'b' to the same sublattice 'a'.
 	
 	Returns
 	-------
 	template_structure: pymatgen.Structure
 
 	template_configuration: list
-		Template configuration from the template structure
+		Template configuration from the template structure and sublattice model.
 	"""
-	if equivalent_wyckoff_sites is not None:
-		site_list, true_sublattices=get_sublattice_information(structure, equivalent_wyckoff_sites=equivalent_wyckoff_sites)
+	if equivalent_sites is not None:
+		true_sublattice_sites=[equivalent_sites[i] if i in equivalent_sites else i for i in wyckoff_site_list]
+		rep_sublattices=[equivalent_sites[i] if i in equivalent_sites else i for i in subl_model_name]
 	else:
-		site_list, true_sublattices=get_sublattice_information(structure)
+		true_sublattice_sites=wyckoff_site_list
+		rep_sublattices=subl_model_name
+	true_sublattices=sorted(set(rep_sublattices))
+	site_list=[]
 	dict_struct=structure.as_dict()
+	for i in true_sublattice_sites:
+		site_dict={'sublattice_sites':i}
+		site_list.append(site_dict)
 	for i in range(0,len(dict_struct['sites'])):
 		dict_struct['sites'][i]['properties'].update(site_list[i])
 		dict_struct['sites'][i]['species'][0]['element']=site_list[i]['sublattice_sites']
@@ -107,4 +136,4 @@ def get_endmembers_with_templates(template_structure, template_configuration, su
 	endmembers=[]
 	for i in subl_combination:
 		endmembers.append(substitutions.substitute_configuration(template_structure, [template_configuration], [i]))
-	return endmembers
+	return subl_combination, endmembers
