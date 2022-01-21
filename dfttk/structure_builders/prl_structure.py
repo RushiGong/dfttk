@@ -83,7 +83,7 @@ class PRLStructure(Structure):
         Parameters
         ----------
         structure : pymatgen.Structure
-        equivalent_wyckoff_sites : list of lists
+        equivalent_sites : list of lists
             List of Wyckoff sites that are treated as the same sublattice, e.g. [['b', 'f']] will
             give combine Wyckoff site 'b' and Wyckoff site 'f' into one sublattice. Putting the same
             Wyckoff site in multiple equivalent groups will produce undefined results.
