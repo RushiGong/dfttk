@@ -25,6 +25,7 @@ class PRLStructure(Structure):
         self.sublattice_configuration = kwargs.pop('sublattice_configuration', None)
         self.sublattice_occupancies = kwargs.pop('sublattice_occupancies', None)
         self.sublattice_site_ratios = kwargs.pop('sublattice_site_ratios', None)
+        self.wyckoff_sites = kwargs.pop('wyckoff_sites', None)
         super(PRLStructure, self).__init__(*args, **kwargs)
 
     def __eq__(self, other):
@@ -40,7 +41,8 @@ class PRLStructure(Structure):
         subl_config = self.sublattice_configuration == other.sublattice_configuration
         subl_site_ratios = self.sublattice_site_ratios == other.sublattice_site_ratios
         subl_occupancies = self.sublattice_occupancies == other.sublattice_occupancies
-        return subl_config and subl_site_ratios and subl_occupancies
+        wyckoff_sites = self.wyckoff_sites == other.wyckoff_sites
+        return subl_config and subl_site_ratios and subl_occupancies and wyckoff_sites
 
     @property
     def espei_sublattice_configuration(self):
@@ -156,6 +158,7 @@ class PRLStructure(Structure):
         struct.sublattice_configuration = config
         struct.sublattice_occupancies = occ
         struct.sublattice_site_ratios = ratios
+        struct.wyckoff_sites = sorted(subl_wyckoff_name)
         return struct
 
     @staticmethod
