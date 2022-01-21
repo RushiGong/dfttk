@@ -1,5 +1,6 @@
 from pymatgen.core import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+from collections import Counter
 
 class PRLStructure(Structure):
     """A pymatgen Structure object, with some customizations for ESPEI.
@@ -76,7 +77,7 @@ class PRLStructure(Structure):
 
 
     @classmethod
-    def from_structure(cls, structure, equivalent_wyckoff_sites=None):
+    def from_structure(cls, structure, equivalent_sites=None):
         """
 
         Parameters
@@ -97,10 +98,31 @@ class PRLStructure(Structure):
         structure.replace_species({sp.name: "H" for sp in structure.species})
         sga = SpacegroupAnalyzer(structure)
         wyckoff_sites = sga.get_symmetry_dataset()['wyckoffs']
-        true_sublattices = sorted(set(wyckoff_sites))
-        if equivalent_wyckoff_sites is not None:
+        equal_atom = sga.get_symmetry_dataset()['equivalent_atoms']
+        num_wyckoff_sites = sorted(set(wyckoff_sites))
+        num_eq_atom=sorted(set(equal_atom))
+        if num_wyckoff_sites == num_eq_atom:
+            true_sites = wyckoff_sites
+        else:
+            subl_wyckoff_name=[]
+            for i in num_eq_atom:
+                subl_wyckoff_name.append(wyckoff_sites[i])
+            replace_list=[]
+            original_list=[]
+            for i in subl_wyckoff_name:
+                original_list.append(i)
+                if i in replace_list:
+                    count_subl=dict(Counter(original_list))
+                    j=i+str(count_subl[i])
+                else:
+                    j=i
+                replace_list.append(j)
+            replace_dict=dict(zip(num_eq_atom, replace_list))
+            true_sites=[replace_dict[i] for i in equal_atom]
+        true_sublattices = sorted(set(true_sites))
+        if equivalent_sites is not None:
             # transform the true sublattices by combining equivalent sites
-            combined_sublattices = [''.join(sorted(sites)) for sites in equivalent_wyckoff_sites]
+            combined_sublattices = [''.join(sorted(sites)) for sites in equivalent_sites]
             def match_subl(candidate):
                 for subl in combined_sublattices:
                     # if the candidate site is in the combined sublattice, return the combined sublattice
@@ -119,8 +141,8 @@ class PRLStructure(Structure):
         ratios = []
         for subl in new_subl_model:
             species_frequency_dict = {}
-            for site, wyckoff_site in zip(struct.sites, wyckoff_sites):
-                if wyckoff_site in subl:
+            for site, wyckoff_site in zip(struct.sites, true_sites):
+                if wyckoff_site == subl:
                     species = site.specie.name.upper()
                     species_frequency_dict[species] = species_frequency_dict.get(species, 0) + 1
             total_subl_occupation = sum(species_frequency_dict.values())
