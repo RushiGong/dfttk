@@ -8,19 +8,19 @@ import dfttk.structure_builders.substitutions as substitutions
 import dfttk.utils
 from collections import Counter
 def dilute_substitution(structures, element_dict):
-	"""
-	Return dilute structures base on endmembers and elements
+    """
+    Return dilute structures base on endmembers and elements
 
-	Parameters
-	----------
-	structures: list of endmember structures from endmember.py
+    Parameters
+    ----------
+    structures: list of endmember structures from endmember.py
 
-	elements: list of elements for substitutions
+    elements: list of elements for substitutions
 
-	Returns
-	-------
-	dilute structures: list
-	"""
+    Returns
+    -------
+    dilute structures: list
+    """
     dilute_strs=list()
     for strs in structures:
         sga = SpacegroupAnalyzer(strs)
